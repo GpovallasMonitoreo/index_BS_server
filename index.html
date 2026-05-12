@@ -3,52 +3,209 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EcoVallas Wrapper - Marcador Remoto</title>
+    <title>EcoVallas Live Scoreboard</title>
     <style>
-        /* Reset estricto para evitar márgenes o barras de scroll en el reproductor */
+        /* CSS Compatible con motores web antiguos (Perion / Broadsign) */
         html, body {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
-            background-color: #000; /* Fondo negro por si tarda en cargar la red */
-            overflow: hidden; 
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        /* Configuración del iframe para que actúe como vista nativa */
-        iframe {
+        .main-container {
+            position: relative;
             width: 100vw;
-            height: 100vh;
-            border: none;
-            margin: 0;
-            padding: 0;
-            display: block;
-            pointer-events: none; /* Bloquea cualquier interacción (ideal para vallas publicitarias) */
+            height: 28.125vw; /* Proporción exacta 1440x405 */
+            background-image: url('https://jxwdncxtnhmrufvdxuti.supabase.co/storage/v1/object/public/banners-publicos/2ESTADIO%201440X405.jpg');
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 1vw 3vw rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        #live-scoreboard {
+            position: absolute;
+            /* AJUSTE DE POSICIÓN */
+            top: 25%; /* Antes 7%, ahora más abajo */
+            right: 15%; /* Antes 3%, ahora más a la izquierda */
+            width: 28%;
+            min-height: 60%;
+            height: auto; /* Permite que crezca si el texto baja de línea */
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+            border: 0.1vw solid rgba(255, 255, 255, 0.2);
+            border-radius: 1vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-evenly;
+            align-items: center;
+            padding: 2% 1%; /* Un poco más de padding vertical */
+            color: white;
+            box-sizing: border-box;
+            gap: 1.5vw; /* Espacio interno para que no se apriete si crece */
+        }
+
+        .league-title {
+            font-size: 1.1vw;
+            letter-spacing: 0.1vw;
+            color: #ffb380;
+            text-transform: uppercase;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .teams-container {
+            display: flex;
+            width: 100%;
+            justify-content: space-between;
+            align-items: center; /* Centra los elementos verticalmente */
+        }
+
+        .team {
+            flex: 1;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .team-name { 
+            font-size: 1.2vw; /* Ligeramente más pequeño para fluir mejor */
+            font-weight: bold; 
+            text-align: center;
+            /* AJUSTE PARA NOMBRES LARGOS */
+            white-space: normal; /* Permite saltos de línea */
+            word-wrap: break-word; /* Rompe palabras si son excesivamente largas */
+            max-width: 95%;
+            line-height: 1.2; /* Espaciado entre líneas para que se lea claro */
+            padding: 0 0.5vw;
+        }
+
+        .score-box {
+            font-size: 3.5vw;
+            font-weight: 800;
+            padding: 0 2%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1vw;
+        }
+
+        .status-badge {
+            background: #ff4d4d;
+            padding: 0.5vw 1.5vw;
+            border-radius: 2vw;
+            font-size: 1vw;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-top: 0.5vw;
         }
     </style>
 </head>
 <body>
 
-    <!-- Carga tu URL de GitHub Pages -->
-    <iframe 
-        id="marcador-frame"
-        src="https://gpovallasmonitoreo.github.io/broadsing_marcador/" 
-        frameborder="0" 
-        scrolling="no">
-    </iframe>
+<div class="main-container">
+    <div id="live-scoreboard">
+        <div class="league-title" id="league">Buscando...</div>
+        
+        <div class="teams-container">
+            <div class="team">
+                <div class="team-name" id="name-home">---</div>
+            </div>
+            
+            <div class="score-box">
+                <span id="score-home">0</span>
+                <span>-</span>
+                <span id="score-away">0</span>
+            </div>
+            
+            <div class="team">
+                <div class="team-name" id="name-away">---</div>
+            </div>
+        </div>
 
-    <script>
-        // MECANISMO DE SEGURIDAD (Opcional pero recomendado para DOOH)
-        // Las pantallas de cartelería a veces pierden la conexión temporalmente.
-        // Este script fuerza una recarga de todo el marco cada hora para asegurar 
-        // que la caché se limpie y el reproductor no se quede colgado.
-        
-        const REFRESH_INTERVAL_MS = 3600000; // 1 hora
-        
-        setTimeout(() => {
-            window.location.reload(true);
-        }, REFRESH_INTERVAL_MS);
-    </script>
+        <div class="status-badge" id="match-time">ESPERANDO</div>
+    </div>
+</div>
+
+<script>
+    const API_KEY = '972b42bfcf912a257efafab42af22117';
+    const HEADERS = {
+        "x-rapidapi-key": API_KEY,
+        "x-rapidapi-host": "v3.football.api-sports.io"
+    };
+
+    async function fetchPartido() {
+        try {
+            // INTENTO 1: Buscar partidos en vivo
+            let response = await fetch(`https://v3.football.api-sports.io/fixtures?live=all`, { method: "GET", headers: HEADERS });
+            let data = await response.json();
+            let match = null;
+            let isLive = false;
+
+            if (data.response && data.response.length > 0) {
+                match = data.response[0];
+                isLive = true;
+            } else {
+                // INTENTO 2 (FALLBACK): Si no hay en vivo, buscar el último partido terminado
+                let fallbackResponse = await fetch(`https://v3.football.api-sports.io/fixtures?last=1`, { method: "GET", headers: HEADERS });
+                let fallbackData = await fallbackResponse.json();
+                
+                if (fallbackData.response && fallbackData.response.length > 0) {
+                    match = fallbackData.response[0];
+                    isLive = false;
+                }
+            }
+
+            // Si se encontró algún partido (en vivo o finalizado) se muestra
+            if (match) {
+                document.getElementById('name-home').innerText = match.teams.home.name;
+                document.getElementById('name-away').innerText = match.teams.away.name;
+                document.getElementById('score-home').innerText = match.goals.home ?? 0;
+                document.getElementById('score-away').innerText = match.goals.away ?? 0;
+                document.getElementById('league').innerText = match.league.name;
+
+                const timeBadge = document.getElementById('match-time');
+                if (isLive) {
+                    timeBadge.innerText = `${match.fixture.status.elapsed}' LIVE`;
+                    timeBadge.style.background = "#ff4d4d"; // Rojo para en vivo
+                } else {
+                    timeBadge.innerText = "FINALIZADO";
+                    timeBadge.style.background = "#555555"; // Gris para terminado
+                }
+            } else {
+                mostrarError("SIN PARTIDOS");
+            }
+        } catch (error) {
+            console.error("Error en API:", error);
+            mostrarError("ERROR DE RED");
+        }
+    }
+
+    function mostrarError(mensaje) {
+        document.getElementById('league').innerText = mensaje;
+        document.getElementById('match-time').innerText = "ESPERANDO...";
+        document.getElementById('match-time').style.background = "#555555";
+        document.getElementById('name-home').innerText = "---";
+        document.getElementById('name-away').innerText = "---";
+        document.getElementById('score-home').innerText = "0";
+        document.getElementById('score-away').innerText = "0";
+    }
+
+    // Ejecución compatible con Perion/Broadsign
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchPartido();
+        setInterval(fetchPartido, 120000); // Actualiza cada 2 minutos
+    });
+</script>
 
 </body>
 </html>
